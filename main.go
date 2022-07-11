@@ -7,15 +7,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
-	"sync"
+	"regexp"
 )
 
 var isDir bool
 
 func main() {
-	path := flag.String("p", "", "file name")
-	name := flag.String("n", "", "file name")
+	nameFlg := flag.String("n", "", "file name")
 	typeFlg := flag.String("t", "", "file type")
 
 	flag.Parse()
@@ -24,37 +22,41 @@ func main() {
 		isDir = true
 	}
 
-	if _, err := os.Stat(*path); err != nil {
-		log.Fatalf("Error: Invalid path: %s", *path)
+	args := flag.Args()
+	if len(args) == 0 {
+		log.Fatalf("Usage: go run main.go [-options <value>] [path]")
+	}
+	path := args[0]
+
+	if _, err := os.Stat(path); err != nil {
+		log.Fatalf("Error: Invalid path: %s", path)
 	}
 
-	walkDir(*path, *name)
+	walkDir(path, *nameFlg)
 
 }
 
-func walkDir(root, filename string) error {
-	wg := &sync.WaitGroup{}
+func walkDir(root string, pattarn string) error {
 	err := filepath.Walk(root, func(path string, info fs.FileInfo, err error) error {
 
 		if err != nil {
 			return err
 		}
 
-		go func() {
-			wg.Add(1)
-			outputFile(path, filename, info)
-			wg.Done()
-		}()
-		return nil
+		err = outputFile(path, pattarn, info)
+		return err
 	})
-
-	wg.Wait()
 
 	return err
 }
 
-func outputFile(path, filename string, info fs.FileInfo) {
-	if strings.Index(info.Name(), filename) != -1 && info.IsDir() == isDir {
+func outputFile(path string, pattarn string, info fs.FileInfo) error {
+	matched, err := regexp.MatchString(pattarn, info.Name())
+	if err != nil {
+		return err
+	}
+	if matched && info.IsDir() == isDir {
 		fmt.Println(path)
 	}
+	return nil
 }
